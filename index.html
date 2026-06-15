@@ -41,11 +41,11 @@
   .btn:active{transform:scale(.96);opacity:.85}
   .btn-camera { background:linear-gradient(135deg,var(--accent),#8b5cf6); color:#fff; }
   .btn-gallery { background:var(--surface2); color:var(--text); border:1px solid #ffffff15; }
-  .send-row { display:flex; gap:8px; }
+  .send-row { display:flex; gap:8px; margin-bottom:8px; }
   #text-input { flex:1; background:var(--surface); border:1px solid #ffffff15; border-radius:14px; padding:12px 15px; color:var(--text); font-size:14px; outline:none; resize:none; font-family:inherit; line-height:1.4; }
   #text-input::placeholder{color:var(--text2)}
   #text-input:focus{border-color:var(--accent)}
-  #send-btn { background:linear-gradient(135deg,var(--accent),#8b5cf6); color:#fff; border:none; border-radius:14px; width:56px; min-height:50px; font-size:22px; cursor:pointer; flex-shrink:0; -webkit-tap-highlight-color:transparent; display:flex; align-items:center; justify-content:center; }
+  #send-btn { background:linear-gradient(135deg,var(--accent),#8b5cf6); color:#fff; border:none; border-radius:14px; padding:16px; font-size:16px; font-weight:700; cursor:pointer; width:100%; -webkit-tap-highlight-color:transparent; }
   #send-btn:disabled{opacity:.4}
   #send-full-btn { display:none; background:linear-gradient(135deg,var(--accent),#8b5cf6); color:#fff; border:none; border-radius:14px; padding:16px; font-size:16px; font-weight:700; cursor:pointer; width:100%; -webkit-tap-highlight-color:transparent; letter-spacing:0.3px; }
   #send-full-btn:disabled{opacity:.4}
@@ -93,9 +93,8 @@
   </div>
   <div class="send-row">
     <textarea id="text-input" rows="1" placeholder="メッセージ（省略可）"></textarea>
-    <button id="send-btn">↑</button>
   </div>
-  <button id="send-full-btn">📤 送信する</button>
+  <button id="send-btn">📤 送信する</button>
 </div>
 <input type="file" id="file-camera" accept="image/*" capture="environment">
 <input type="file" id="file-gallery" accept="image/*">
@@ -139,7 +138,7 @@ function handleFile(file) {
   document.getElementById('preview-img').src = url;
   document.getElementById('preview-wrap').style.display = 'block';
   document.getElementById('crop-btn-wrap').style.display = 'block';
-  document.getElementById('send-full-btn').style.display = 'block';
+  
   document.getElementById('empty-state')?.remove();
 }
 document.getElementById('file-camera').addEventListener('change', e => handleFile(e.target.files[0]));
@@ -148,7 +147,7 @@ document.getElementById('remove-img').addEventListener('click', () => {
   selectedFile = null; originalImageSrc = null;
   document.getElementById('preview-wrap').style.display = 'none';
   document.getElementById('crop-btn-wrap').style.display = 'none';
-  document.getElementById('send-full-btn').style.display = 'none';
+  
   document.getElementById('preview-img').src = '';
   document.getElementById('file-camera').value = '';
   document.getElementById('file-gallery').value = '';
@@ -245,7 +244,7 @@ ta.addEventListener('input', () => { ta.style.height='auto'; ta.style.height=Mat
 
 // ── Send ──────────────────────────────────────────
 document.getElementById('send-btn').addEventListener('click', send);
-document.getElementById('send-full-btn').addEventListener('click', send);
+
 
 async function send() {
   if (isWaiting) return;
