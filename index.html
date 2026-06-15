@@ -106,8 +106,11 @@
   <div id="crop-hint">枠をドラッグして範囲を選択・角をドラッグしてリサイズ</div>
 </div>
 <script>
-const GEMINI_KEY = 'AIzaSyC9o_F20nNeyTFXiYzLEYEvo5d9fKT4Qx4';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
+// ======================================================
+// ★ GASデプロイ後にここのURLを書き換えてください ★
+// ======================================================
+const GEMINI_URL = 'https://script.google.com/macros/s/AKfycbzJ7NA_J0U7n7-Ss4vfunUdjFB2yK1BbD9PaWEd55zEMw4hBpmUNs0jAp2pzMCI8lMqDA/exec';
+// ======================================================
 
 let selectedFile = null;
 let isWaiting = false;
@@ -250,10 +253,8 @@ async function send() {
   chat.scrollTop = chat.scrollHeight;
 
   try {
-    // Build Gemini request
     const parts = [];
 
-    // System prompt as first text part
     parts.push({ text: `あなたは学習サポートの専門家です。画像の問題を解いてください。
 
 【絶対に守るルール】
@@ -272,7 +273,6 @@ async function send() {
 【答え】
 （最終的な答えを明確に）` });
 
-    // Image
     if (fileToSend) {
       const base64 = await fileToBase64(fileToSend);
       parts.push({
