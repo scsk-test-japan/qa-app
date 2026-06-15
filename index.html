@@ -239,13 +239,15 @@ function applyCrop() {
 document.getElementById('send-btn').addEventListener('click', send);
 
 async function send() {
+  console.log('send called, isWaiting='+isWaiting+', selectedFile='+selectedFile);
   if (isWaiting) return;
   const text = '教えて';
-  if (!selectedFile) return;
 
   isWaiting = true;
   document.getElementById('send-btn').disabled = true;
   document.getElementById('empty-state')?.remove();
+  // 送信開始を視覚的に確認
+  document.getElementById('send-btn').textContent = '⏳ 送信中...';
 
   const chat = document.getElementById('chat');
   const userMsg = document.createElement('div');
@@ -349,6 +351,7 @@ async function send() {
   chat.scrollTop=chat.scrollHeight;
   isWaiting=false;
   document.getElementById('send-btn').disabled=false;
+  document.getElementById('send-btn').textContent='📤 送信する';
 }
 
 // XHR を使ってSSEを受け取る（モバイルfetch/ReadableStream問題の回避）
