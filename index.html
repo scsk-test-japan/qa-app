@@ -299,7 +299,8 @@ async function send() {
     };
     if (fileId) body.files=[{type:'image',transfer_method:'local_file',upload_file_id:fileId}];
 
-    const answer = await fetchWithXHRFallback(`${API_BASE}/chat-messages`, apiKey, body);
+    let xhr_last_response = '';
+    const answer = await fetchWithXHRFallback(`${API_BASE}/chat-messages`, apiKey, body, (raw)=>{ xhr_last_response=raw; });
 
     typingDiv.remove();
     const botMsg = document.createElement('div');
@@ -311,7 +312,13 @@ async function send() {
       if (answer.convId) { conversationId=answer.convId; localStorage.setItem(CONV_KEY,answer.convId); }
     } else {
       bb.style.color='var(--error)';
-      bb.textContent='応答を受信できませんでした。もう一度お試しください。';
+      // 受信した全イベント名を表示してデバッグ
+      const events = [];
+      for (const line of xhr_last_response.split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        try { const o=JSON.parse(line.slice(6).trim()); if(o.event) events.push(o.event); } catch{}
+      }
+      bb.textContent='応答なし。受信イベント: '+[...new Set(events)].join(', ');
     }
     botMsg.appendChild(bb);
     chat.appendChild(botMsg);
@@ -330,7 +337,7 @@ async function send() {
 }
 
 // XHR を使ってSSEを受け取る（モバイルfetch/ReadableStream問題の回避）
-function fetchWithXHRFallback(url, key, body) {
+function fetchWithXHRFallback(url, key, body, onRaw) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', url, true);
@@ -354,13 +361,14 @@ function fetchWithXHRFallback(url, key, body) {
           if ((obj.event==='message'||obj.event==='agent_message') && obj.answer) {
             fullAnswer += obj.answer;
           }
+          if (obj.event==='message_end' && obj.answer) fullAnswer += obj.answer;
           if (obj.conversation_id) convId = obj.conversation_id;
         } catch {}
       }
     };
 
     xhr.onload = () => {
-      // 最後のチャンクも処理
+      // 最後のチャンクも全部処理
       const remaining = xhr.responseText.slice(lastLen);
       for (const line of remaining.split('\n')) {
         if (!line.startsWith('data: ')) continue;
@@ -368,10 +376,27 @@ function fetchWithXHRFallback(url, key, body) {
         if (!js||js==='[DONE]') continue;
         try {
           const obj = JSON.parse(js);
+          // agent_messageのほかmessage_endのanswerも拾う
           if ((obj.event==='message'||obj.event==='agent_message') && obj.answer) fullAnswer+=obj.answer;
+          if (obj.event==='message_end' && obj.answer) fullAnswer+=obj.answer;
           if (obj.conversation_id) convId=obj.conversation_id;
         } catch {}
       }
+      // 全テキストから再スキャン（onprogressで取りこぼした分をカバー）
+      if (!fullAnswer) {
+        for (const line of xhr.responseText.split('\n')) {
+          if (!line.startsWith('data: ')) continue;
+          const js = line.slice(6).trim();
+          if (!js||js==='[DONE]') continue;
+          try {
+            const obj = JSON.parse(js);
+            if ((obj.event==='message'||obj.event==='agent_message') && obj.answer) fullAnswer+=obj.answer;
+            if (obj.event==='message_end' && obj.answer) fullAnswer+=obj.answer;
+            if (obj.conversation_id) convId=obj.conversation_id;
+          } catch {}
+        }
+      }
+      if (onRaw) onRaw(xhr.responseText);
       resolve({text:fullAnswer, convId});
     };
 
