@@ -531,47 +531,40 @@ async function send() {
       throw new Error(e.message || `HTTP ${res.status}`);
     }
 
+    // 全テキスト受信後にパース（モバイル回線でのタイムアウト対策）
+    const rawText = await res.text();
+
     typingDiv.remove();
     const botMsg = document.createElement('div');
     botMsg.className = 'msg bot';
     const botBubble = document.createElement('div');
     botBubble.className = 'bubble';
-    botBubble.textContent = '';
     botMsg.appendChild(botBubble);
     chat.appendChild(botMsg);
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '', fullAnswer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const js = line.slice(6).trim();
-        if (!js || js === '[DONE]') continue;
-        try {
-          const obj = JSON.parse(js);
-          if ((obj.event === 'message' || obj.event === 'agent_message') && obj.answer) {
-            fullAnswer += obj.answer;
-            botBubble.textContent = fullAnswer;
-            chat.scrollTop = chat.scrollHeight;
-          }
-          if (obj.conversation_id) {
-            conversationId = obj.conversation_id;
-            localStorage.setItem(CONV_KEY, obj.conversation_id);
-          }
-        } catch {}
-      }
+    let fullAnswer = '';
+    for (const line of rawText.split('\n')) {
+      if (!line.startsWith('data: ')) continue;
+      const js = line.slice(6).trim();
+      if (!js || js === '[DONE]') continue;
+      try {
+        const obj = JSON.parse(js);
+        if ((obj.event === 'message' || obj.event === 'agent_message') && obj.answer) {
+          fullAnswer += obj.answer;
+        }
+        if (obj.conversation_id) {
+          conversationId = obj.conversation_id;
+          localStorage.setItem(CONV_KEY, obj.conversation_id);
+        }
+      } catch {}
     }
 
-    if (!fullAnswer) {
+    if (fullAnswer) {
+      botBubble.textContent = fullAnswer;
+      chat.scrollTop = chat.scrollHeight;
+    } else {
       botBubble.style.color = 'var(--error)';
-      botBubble.textContent = '応答がありませんでした。もう一度お試しください。';
+      botBubble.textContent = '[デバッグ] 応答なし。受信データ先頭: ' + rawText.slice(0, 200);
     }
 
   } catch (err) {
