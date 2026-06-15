@@ -235,18 +235,13 @@ function applyCrop() {
   img.src = originalImageSrc;
 }
 
-// ── Textarea ──────────────────────────────────────
-const ta = document.getElementById('text-input');
-ta.addEventListener('input', () => { ta.style.height='auto'; ta.style.height=Math.min(ta.scrollHeight,120)+'px'; });
-
 // ── Send ──────────────────────────────────────────
 document.getElementById('send-btn').addEventListener('click', send);
 
-
 async function send() {
   if (isWaiting) return;
-  const text = ta.value.trim() || '教えて';
-  if (!selectedFile && !ta.value.trim()) return;
+  const text = '教えて';
+  if (!selectedFile) return;
 
   isWaiting = true;
   document.getElementById('send-btn').disabled = true;
@@ -267,7 +262,7 @@ async function send() {
   chat.appendChild(userMsg);
   chat.scrollTop = chat.scrollHeight;
 
-  ta.value=''; ta.style.height='auto';
+
   const fileToSend = selectedFile;
   document.getElementById('remove-img').click();
 
