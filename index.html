@@ -30,7 +30,7 @@
   .typing span { width:7px; height:7px; background:var(--accent2); border-radius:50%; animation:bounce 1.2s infinite; }
   .typing span:nth-child(2){animation-delay:.2s} .typing span:nth-child(3){animation-delay:.4s}
   @keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
-  #controls { padding:10px 16px 20px; background:var(--bg); border-top:1px solid #ffffff10; display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
+  #controls { padding:10px 16px env(safe-area-inset-bottom, 24px); background:var(--bg); border-top:1px solid #ffffff10; display:flex; flex-direction:column; gap:8px; flex-shrink:0; padding-bottom: max(24px, env(safe-area-inset-bottom)); }
   #preview-wrap { display:none; position:relative; background:var(--surface); border-radius:12px; overflow:hidden; }
   #preview-wrap img { width:100%; max-height:160px; object-fit:cover; }
   #remove-img { position:absolute; top:8px; right:8px; background:#000000aa; color:#fff; border:none; border-radius:50%; width:28px; height:28px; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
@@ -45,8 +45,10 @@
   #text-input { flex:1; background:var(--surface); border:1px solid #ffffff15; border-radius:14px; padding:12px 15px; color:var(--text); font-size:14px; outline:none; resize:none; font-family:inherit; line-height:1.4; }
   #text-input::placeholder{color:var(--text2)}
   #text-input:focus{border-color:var(--accent)}
-  #send-btn { background:linear-gradient(135deg,var(--accent),#8b5cf6); color:#fff; border:none; border-radius:14px; width:50px; font-size:20px; cursor:pointer; flex-shrink:0; -webkit-tap-highlight-color:transparent; }
+  #send-btn { background:linear-gradient(135deg,var(--accent),#8b5cf6); color:#fff; border:none; border-radius:14px; width:56px; min-height:50px; font-size:22px; cursor:pointer; flex-shrink:0; -webkit-tap-highlight-color:transparent; display:flex; align-items:center; justify-content:center; }
   #send-btn:disabled{opacity:.4}
+  #send-full-btn { display:none; background:linear-gradient(135deg,var(--accent),#8b5cf6); color:#fff; border:none; border-radius:14px; padding:16px; font-size:16px; font-weight:700; cursor:pointer; width:100%; -webkit-tap-highlight-color:transparent; letter-spacing:0.3px; }
+  #send-full-btn:disabled{opacity:.4}
   #file-camera,#file-gallery{display:none}
   .empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--text2); text-align:center; padding:40px 20px; }
   .empty .icon{font-size:48px} .empty h2{font-size:18px;color:var(--text);font-weight:700} .empty p{font-size:13px;line-height:1.6}
@@ -93,6 +95,7 @@
     <textarea id="text-input" rows="1" placeholder="メッセージ（省略可）"></textarea>
     <button id="send-btn">↑</button>
   </div>
+  <button id="send-full-btn">📤 送信する</button>
 </div>
 <input type="file" id="file-camera" accept="image/*" capture="environment">
 <input type="file" id="file-gallery" accept="image/*">
@@ -136,6 +139,7 @@ function handleFile(file) {
   document.getElementById('preview-img').src = url;
   document.getElementById('preview-wrap').style.display = 'block';
   document.getElementById('crop-btn-wrap').style.display = 'block';
+  document.getElementById('send-full-btn').style.display = 'block';
   document.getElementById('empty-state')?.remove();
 }
 document.getElementById('file-camera').addEventListener('change', e => handleFile(e.target.files[0]));
@@ -144,6 +148,7 @@ document.getElementById('remove-img').addEventListener('click', () => {
   selectedFile = null; originalImageSrc = null;
   document.getElementById('preview-wrap').style.display = 'none';
   document.getElementById('crop-btn-wrap').style.display = 'none';
+  document.getElementById('send-full-btn').style.display = 'none';
   document.getElementById('preview-img').src = '';
   document.getElementById('file-camera').value = '';
   document.getElementById('file-gallery').value = '';
@@ -240,6 +245,7 @@ ta.addEventListener('input', () => { ta.style.height='auto'; ta.style.height=Mat
 
 // ── Send ──────────────────────────────────────────
 document.getElementById('send-btn').addEventListener('click', send);
+document.getElementById('send-full-btn').addEventListener('click', send);
 
 async function send() {
   if (isWaiting) return;
