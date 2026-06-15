@@ -17,7 +17,7 @@
   .logo { width:34px; height:34px; background:linear-gradient(135deg,var(--accent),var(--accent2)); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:17px; }
   header h1 { font-size:16px; font-weight:700; }
   header p { font-size:11px; color:var(--text2); margin-top:1px; }
-  #chat { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:14px; min-height:200px; }
+  #chat { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:14px; min-height:300px; }
   .msg { display:flex; flex-direction:column; gap:6px; animation:fadeIn .3s ease; }
   @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
   .msg.user { align-items:flex-end; }
@@ -41,19 +41,12 @@
   .btn:active{transform:scale(.96);opacity:.85}
   .btn-camera { background:linear-gradient(135deg,var(--accent),#8b5cf6); color:#fff; }
   .btn-gallery { background:var(--surface2); color:var(--text); border:1px solid #ffffff15; }
-  .send-row { display:flex; gap:8px; margin-bottom:8px; }
-  #text-input { flex:1; background:var(--surface); border:1px solid #ffffff15; border-radius:14px; padding:12px 15px; color:var(--text); font-size:14px; outline:none; resize:none; font-family:inherit; line-height:1.4; }
-  #text-input::placeholder{color:var(--text2)}
-  #text-input:focus{border-color:var(--accent)}
   #send-btn { background:linear-gradient(135deg,var(--accent),#8b5cf6); color:#fff; border:none; border-radius:14px; padding:16px; font-size:16px; font-weight:700; cursor:pointer; width:100%; -webkit-tap-highlight-color:transparent; }
-  #send-btn:disabled{opacity:.4}
-  #send-full-btn { display:none; background:linear-gradient(135deg,var(--accent),#8b5cf6); color:#fff; border:none; border-radius:14px; padding:16px; font-size:16px; font-weight:700; cursor:pointer; width:100%; -webkit-tap-highlight-color:transparent; letter-spacing:0.3px; }
-  #send-full-btn:disabled{opacity:.4}
+  #send-btn:disabled{opacity:.5}
   #file-camera,#file-gallery{display:none}
   .empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--text2); text-align:center; padding:40px 20px; }
   .empty .icon{font-size:48px} .empty h2{font-size:18px;color:var(--text);font-weight:700} .empty p{font-size:13px;line-height:1.6}
-
-  /* Crop overlay */
+  /* Crop */
   #crop-overlay { display:none; position:fixed; inset:0; z-index:200; background:#000; flex-direction:column; }
   #crop-overlay.active{display:flex}
   #crop-topbar { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:#000; color:#fff; }
@@ -78,7 +71,7 @@
   <div class="empty" id="empty-state">
     <div class="icon">📷</div>
     <h2>問題を撮影しよう</h2>
-    <p>下の「カメラで撮る」をタップして<br>問題文を写真に撮ってください。<br>トリミングしてから送れます！</p>
+    <p>「カメラで撮る」をタップして<br>問題文を写真に撮ってください。<br>トリミングしてから送れます！</p>
   </div>
 </div>
 <div id="controls">
@@ -95,7 +88,6 @@
 </div>
 <input type="file" id="file-camera" accept="image/*" capture="environment">
 <input type="file" id="file-gallery" accept="image/*">
-
 <div id="crop-overlay">
   <div id="crop-topbar">
     <button id="crop-cancel">キャンセル</button>
@@ -113,29 +105,25 @@
   </div>
   <div id="crop-hint">枠をドラッグして範囲を選択・角をドラッグしてリサイズ</div>
 </div>
-
 <script>
-const API_BASE = 'https://api.dify.ai/v1';
-const CONV_KEY = 'dify_conv_id';
-let apiKey = 'app-FSREAPRQUhnuGyXqbHITYKhI';
-let conversationId = localStorage.getItem(CONV_KEY) || '';
+const GEMINI_KEY = 'AIzaSyC9o_F20nNeyTFXiYzLEYEvo5d9fKT4Qx4';
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
+
 let selectedFile = null;
 let isWaiting = false;
 let originalImageSrc = null;
 
-// ── Camera/Gallery ────────────────────────────────
+// Camera/Gallery
 document.getElementById('camera-btn').addEventListener('click', () => document.getElementById('file-camera').click());
 document.getElementById('gallery-btn').addEventListener('click', () => document.getElementById('file-gallery').click());
 
 function handleFile(file) {
   if (!file) return;
   selectedFile = file;
-  const url = URL.createObjectURL(file);
-  originalImageSrc = url;
-  document.getElementById('preview-img').src = url;
+  originalImageSrc = URL.createObjectURL(file);
+  document.getElementById('preview-img').src = originalImageSrc;
   document.getElementById('preview-wrap').style.display = 'block';
   document.getElementById('crop-btn-wrap').style.display = 'block';
-  
   document.getElementById('empty-state')?.remove();
 }
 document.getElementById('file-camera').addEventListener('change', e => handleFile(e.target.files[0]));
@@ -144,112 +132,98 @@ document.getElementById('remove-img').addEventListener('click', () => {
   selectedFile = null; originalImageSrc = null;
   document.getElementById('preview-wrap').style.display = 'none';
   document.getElementById('crop-btn-wrap').style.display = 'none';
-  
   document.getElementById('preview-img').src = '';
   document.getElementById('file-camera').value = '';
   document.getElementById('file-gallery').value = '';
 });
 
-// ── Crop ─────────────────────────────────────────
+// Crop
 const cropImg = document.getElementById('crop-img');
 const cropSel = document.getElementById('crop-sel');
 const cropWrap = document.getElementById('crop-canvas-wrap');
-let imgRect = {}, sel = {};
+let imgRect = {}, sel = {}, drag = null;
 
-document.getElementById('crop-btn').addEventListener('click', openCrop);
-document.getElementById('crop-cancel').addEventListener('click', closeCrop);
-document.getElementById('crop-done').addEventListener('click', applyCrop);
-
-function openCrop() {
+document.getElementById('crop-btn').addEventListener('click', () => {
   document.getElementById('crop-overlay').classList.add('active');
   cropImg.src = originalImageSrc;
-  cropImg.onload = layoutCropImage;
-  if (cropImg.complete) layoutCropImage();
-}
-function closeCrop() { document.getElementById('crop-overlay').classList.remove('active'); }
+  cropImg.onload = layoutCrop;
+  if (cropImg.complete) layoutCrop();
+});
+document.getElementById('crop-cancel').addEventListener('click', () => document.getElementById('crop-overlay').classList.remove('active'));
+document.getElementById('crop-done').addEventListener('click', () => {
+  const {x,y,scale} = imgRect;
+  const sx=(sel.x-x)/scale, sy=(sel.y-y)/scale, sw=sel.w/scale, sh=sel.h/scale;
+  const canvas = document.createElement('canvas');
+  canvas.width=Math.round(sw); canvas.height=Math.round(sh);
+  const img2 = new Image();
+  img2.onload = () => {
+    canvas.getContext('2d').drawImage(img2,Math.round(sx),Math.round(sy),Math.round(sw),Math.round(sh),0,0,Math.round(sw),Math.round(sh));
+    canvas.toBlob(blob => {
+      selectedFile = new File([blob],'cropped.jpg',{type:'image/jpeg'});
+      document.getElementById('preview-img').src = URL.createObjectURL(blob);
+      document.getElementById('crop-overlay').classList.remove('active');
+    }, 'image/jpeg', 0.92);
+  };
+  img2.src = originalImageSrc;
+});
 
-function layoutCropImage() {
-  const ww = cropWrap.clientWidth, wh = cropWrap.clientHeight;
-  const iw = cropImg.naturalWidth, ih = cropImg.naturalHeight;
-  const scale = Math.min(ww/iw, wh/ih);
-  const rw = iw*scale, rh = ih*scale;
-  const rx = (ww-rw)/2, ry = (wh-rh)/2;
-  cropImg.style.cssText = `width:${rw}px;height:${rh}px;left:${rx}px;top:${ry}px`;
-  imgRect = {x:rx,y:ry,w:rw,h:rh,iw,ih,scale};
-  sel = {x:rx,y:ry,w:rw,h:rh};
-  applySel();
+function layoutCrop() {
+  const ww=cropWrap.clientWidth, wh=cropWrap.clientHeight;
+  const iw=cropImg.naturalWidth, ih=cropImg.naturalHeight;
+  const scale=Math.min(ww/iw, wh/ih);
+  const rw=iw*scale, rh=ih*scale, rx=(ww-rw)/2, ry=(wh-rh)/2;
+  cropImg.style.cssText=`width:${rw}px;height:${rh}px;left:${rx}px;top:${ry}px`;
+  imgRect={x:rx,y:ry,w:rw,h:rh,scale};
+  sel={x:rx,y:ry,w:rw,h:rh};
+  updateSel();
 }
-function applySel() {
-  cropSel.style.cssText = `left:${sel.x}px;top:${sel.y}px;width:${sel.w}px;height:${sel.h}px`;
+function updateSel() {
+  cropSel.style.cssText=`left:${sel.x}px;top:${sel.y}px;width:${sel.w}px;height:${sel.h}px`;
 }
-function clampSel() {
+function clamp() {
   const m=30;
-  sel.x = Math.max(imgRect.x, Math.min(sel.x, imgRect.x+imgRect.w-m));
-  sel.y = Math.max(imgRect.y, Math.min(sel.y, imgRect.y+imgRect.h-m));
-  sel.w = Math.max(m, Math.min(sel.w, imgRect.x+imgRect.w-sel.x));
-  sel.h = Math.max(m, Math.min(sel.h, imgRect.y+imgRect.h-sel.y));
+  sel.x=Math.max(imgRect.x,Math.min(sel.x,imgRect.x+imgRect.w-m));
+  sel.y=Math.max(imgRect.y,Math.min(sel.y,imgRect.y+imgRect.h-m));
+  sel.w=Math.max(m,Math.min(sel.w,imgRect.x+imgRect.w-sel.x));
+  sel.h=Math.max(m,Math.min(sel.h,imgRect.y+imgRect.h-sel.y));
 }
-
-let drag = null;
 function getPos(e) {
-  const r = cropWrap.getBoundingClientRect(), t = e.touches?e.touches[0]:e;
+  const r=cropWrap.getBoundingClientRect(), t=e.touches?e.touches[0]:e;
   return {x:t.clientX-r.left, y:t.clientY-r.top};
 }
 cropSel.addEventListener('pointerdown', e => {
   e.stopPropagation();
-  const corner = e.target.dataset.corner;
-  drag = {type:corner?'resize':'move', corner, start:getPos(e), startSel:{...sel}};
+  drag={corner:e.target.dataset.corner, start:getPos(e), s0:{...sel}};
   window.addEventListener('pointermove', onDrag);
-  window.addEventListener('pointerup', endDrag);
+  window.addEventListener('pointerup', ()=>{ drag=null; window.removeEventListener('pointermove',onDrag); });
 });
 cropSel.addEventListener('touchstart', e=>e.preventDefault(), {passive:false});
 function onDrag(e) {
   if (!drag) return;
-  const p=getPos(e), dx=p.x-drag.start.x, dy=p.y-drag.start.y, s=drag.startSel;
-  if (drag.type==='move') { sel.x=s.x+dx; sel.y=s.y+dy; sel.w=s.w; sel.h=s.h; }
-  else {
-    const c=drag.corner;
-    if(c==='tl'){sel.x=s.x+dx;sel.y=s.y+dy;sel.w=s.w-dx;sel.h=s.h-dy}
-    if(c==='tr'){sel.y=s.y+dy;sel.w=s.w+dx;sel.h=s.h-dy}
-    if(c==='bl'){sel.x=s.x+dx;sel.w=s.w-dx;sel.h=s.h+dy}
-    if(c==='br'){sel.w=s.w+dx;sel.h=s.h+dy}
-  }
-  clampSel(); applySel();
-}
-function endDrag() { drag=null; window.removeEventListener('pointermove',onDrag); window.removeEventListener('pointerup',endDrag); }
-
-function applyCrop() {
-  const {x,y,w,h,scale} = imgRect;
-  const sx=(sel.x-x)/scale, sy=(sel.y-y)/scale, sw=sel.w/scale, sh=sel.h/scale;
-  const canvas = document.createElement('canvas');
-  canvas.width=Math.round(sw); canvas.height=Math.round(sh);
-  const img = new Image();
-  img.onload = () => {
-    canvas.getContext('2d').drawImage(img,Math.round(sx),Math.round(sy),Math.round(sw),Math.round(sh),0,0,Math.round(sw),Math.round(sh));
-    canvas.toBlob(blob => {
-      selectedFile = new File([blob],'cropped.jpg',{type:'image/jpeg'});
-      document.getElementById('preview-img').src = URL.createObjectURL(blob);
-      closeCrop();
-    }, 'image/jpeg', 0.92);
-  };
-  img.src = originalImageSrc;
+  const p=getPos(e), dx=p.x-drag.start.x, dy=p.y-drag.start.y, s=drag.s0;
+  const c=drag.corner;
+  if(!c){sel.x=s.x+dx;sel.y=s.y+dy;sel.w=s.w;sel.h=s.h}
+  else if(c==='tl'){sel.x=s.x+dx;sel.y=s.y+dy;sel.w=s.w-dx;sel.h=s.h-dy}
+  else if(c==='tr'){sel.y=s.y+dy;sel.w=s.w+dx;sel.h=s.h-dy}
+  else if(c==='bl'){sel.x=s.x+dx;sel.w=s.w-dx;sel.h=s.h+dy}
+  else if(c==='br'){sel.w=s.w+dx;sel.h=s.h+dy}
+  clamp(); updateSel();
 }
 
-// ── Send ──────────────────────────────────────────
+// Send
 document.getElementById('send-btn').addEventListener('click', send);
 
 async function send() {
-  console.log('send called, isWaiting='+isWaiting+', selectedFile='+selectedFile);
   if (isWaiting) return;
-  const text = '教えて';
-
   isWaiting = true;
-  document.getElementById('send-btn').disabled = true;
+  const btn = document.getElementById('send-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ 解析中...';
   document.getElementById('empty-state')?.remove();
-  // 送信開始を視覚的に確認
-  document.getElementById('send-btn').textContent = '⏳ 送信中...';
 
   const chat = document.getElementById('chat');
+
+  // User message
   const userMsg = document.createElement('div');
   userMsg.className = 'msg user';
   if (selectedFile) {
@@ -259,170 +233,100 @@ async function send() {
     userMsg.appendChild(imgEl);
   }
   const ub = document.createElement('div');
-  ub.className='bubble'; ub.textContent=text;
+  ub.className = 'bubble';
+  ub.textContent = '教えて';
   userMsg.appendChild(ub);
   chat.appendChild(userMsg);
   chat.scrollTop = chat.scrollHeight;
 
-
   const fileToSend = selectedFile;
   document.getElementById('remove-img').click();
 
+  // Typing
   const typingDiv = document.createElement('div');
-  typingDiv.className='msg bot';
-  typingDiv.innerHTML='<div class="typing"><span></span><span></span><span></span></div>';
+  typingDiv.className = 'msg bot';
+  typingDiv.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
   chat.appendChild(typingDiv);
-  chat.scrollTop=chat.scrollHeight;
+  chat.scrollTop = chat.scrollHeight;
 
   try {
-    // 1. Upload image
-    let fileId = null;
+    // Build Gemini request
+    const parts = [];
+
+    // System prompt as first text part
+    parts.push({ text: `あなたは問題解析の専門家です。
+画像内の問題文を正確に読み取り、以下のフォーマットで日本語で回答してください。
+コードブロック（\`\`\`）は絶対に使わないでください。
+
+【問題】
+（読み取った問題文）
+
+【解法】
+（ステップごとの解説）
+
+【答え】
+（明確な答え）` });
+
+    // Image
     if (fileToSend) {
-      const form = new FormData();
-      form.append('file', fileToSend, fileToSend.name||'photo.jpg');
-      form.append('user','user-001');
-      const upRes = await fetch(`${API_BASE}/files/upload`, {
-        method:'POST',
-        headers:{'Authorization':`Bearer ${apiKey}`},
-        body:form
+      const base64 = await fileToBase64(fileToSend);
+      parts.push({
+        inline_data: {
+          mime_type: fileToSend.type || 'image/jpeg',
+          data: base64
+        }
       });
-      if (!upRes.ok) throw new Error('画像アップロード失敗: '+upRes.status);
-      const upData = await upRes.json();
-      fileId = upData.id;
     }
 
-    // 2. Call API with fetch + ReadableStream (XHR fallback for mobile)
-    const body = {
-      inputs:{}, query:text, response_mode:'streaming',
-      conversation_id:'',  // 毎回新規会話（conversation継続はいったん無効）
-      user:'user-001'
-    };
-    if (fileId) {
-      body.files = [{
-        type: 'image',
-        transfer_method: 'local_file',
-        upload_file_id: fileId
-      }];
-    }
-    // デバッグ用：送信内容をコンソールに出力
-    console.log('Sending body:', JSON.stringify(body));
+    parts.push({ text: '教えてください。' });
 
-    let xhr_last_response = '';
-    const answer = await fetchWithXHRFallback(`${API_BASE}/chat-messages`, apiKey, body, (raw)=>{ xhr_last_response=raw; });
+    const res = await fetch(GEMINI_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 2048 }
+      })
+    });
 
+    const data = await res.json();
     typingDiv.remove();
+
     const botMsg = document.createElement('div');
-    botMsg.className='msg bot';
+    botMsg.className = 'msg bot';
     const bb = document.createElement('div');
-    bb.className='bubble';
-    if (answer.text) {
-      bb.textContent = answer.text;
-      if (answer.convId) { conversationId=answer.convId; localStorage.setItem(CONV_KEY,answer.convId); }
+    bb.className = 'bubble';
+
+    if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+      bb.textContent = data.candidates[0].content.parts[0].text;
     } else {
-      bb.style.color='var(--error)';
-      // 受信した全イベント名を表示してデバッグ
-      const events = [];
-      for (const line of xhr_last_response.split('\n')) {
-        if (!line.startsWith('data: ')) continue;
-        try { const o=JSON.parse(line.slice(6).trim()); if(o.event) events.push(o.event); } catch{}
-      }
-      // errorイベントの詳細も表示
-      let errorDetail = '';
-      for (const line of xhr_last_response.split('\n')) {
-        if (!line.startsWith('data: ')) continue;
-        try {
-          const o = JSON.parse(line.slice(6).trim());
-          if (o.event==='error') errorDetail = JSON.stringify(o);
-        } catch{}
-      }
-      bb.textContent = 'イベント: '+[...new Set(events)].join(', ')+'\n詳細: '+(errorDetail||'なし');
+      bb.style.color = 'var(--error)';
+      bb.textContent = 'エラー: ' + JSON.stringify(data).slice(0, 200);
     }
+
     botMsg.appendChild(bb);
     chat.appendChild(botMsg);
 
   } catch(err) {
     typingDiv.remove();
     const em = document.createElement('div');
-    em.className='msg bot';
-    em.innerHTML=`<div class="bubble" style="color:var(--error)">エラー: ${err.message}</div>`;
+    em.className = 'msg bot';
+    em.innerHTML = `<div class="bubble" style="color:var(--error)">エラー: ${err.message}</div>`;
     chat.appendChild(em);
   }
 
-  chat.scrollTop=chat.scrollHeight;
-  isWaiting=false;
-  document.getElementById('send-btn').disabled=false;
-  document.getElementById('send-btn').textContent='📤 送信する';
+  chat.scrollTop = chat.scrollHeight;
+  isWaiting = false;
+  btn.disabled = false;
+  btn.textContent = '📤 送信する';
 }
 
-// XHR を使ってSSEを受け取る（モバイルfetch/ReadableStream問題の回避）
-function fetchWithXHRFallback(url, key, body, onRaw) {
+function fileToBase64(file) {
   return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', url, true);
-    xhr.setRequestHeader('Authorization', 'Bearer '+key);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.responseType = 'text';
-
-    let fullAnswer = '';
-    let convId = '';
-    let lastLen = 0;
-
-    xhr.onprogress = () => {
-      const chunk = xhr.responseText.slice(lastLen);
-      lastLen = xhr.responseText.length;
-      for (const line of chunk.split('\n')) {
-        if (!line.startsWith('data: ')) continue;
-        const js = line.slice(6).trim();
-        if (!js || js==='[DONE]') continue;
-        try {
-          const obj = JSON.parse(js);
-          if ((obj.event==='message'||obj.event==='agent_message') && obj.answer) {
-            fullAnswer += obj.answer;
-          }
-          if (obj.event==='message_end' && obj.answer) fullAnswer += obj.answer;
-          if (obj.conversation_id) convId = obj.conversation_id;
-        } catch {}
-      }
-    };
-
-    xhr.onload = () => {
-      // 最後のチャンクも全部処理
-      const remaining = xhr.responseText.slice(lastLen);
-      for (const line of remaining.split('\n')) {
-        if (!line.startsWith('data: ')) continue;
-        const js = line.slice(6).trim();
-        if (!js||js==='[DONE]') continue;
-        try {
-          const obj = JSON.parse(js);
-          // agent_messageのほかmessage_endのanswerも拾う
-          if ((obj.event==='message'||obj.event==='agent_message') && obj.answer) fullAnswer+=obj.answer;
-          if (obj.event==='message_end' && obj.answer) fullAnswer+=obj.answer;
-          if (obj.conversation_id) convId=obj.conversation_id;
-        } catch {}
-      }
-      // 全テキストから再スキャン（onprogressで取りこぼした分をカバー）
-      if (!fullAnswer) {
-        for (const line of xhr.responseText.split('\n')) {
-          if (!line.startsWith('data: ')) continue;
-          const js = line.slice(6).trim();
-          if (!js||js==='[DONE]') continue;
-          try {
-            const obj = JSON.parse(js);
-            if ((obj.event==='message'||obj.event==='agent_message') && obj.answer) fullAnswer+=obj.answer;
-            if (obj.event==='message_end' && obj.answer) fullAnswer+=obj.answer;
-            if (obj.conversation_id) convId=obj.conversation_id;
-          } catch {}
-        }
-      }
-      if (onRaw) onRaw(xhr.responseText);
-      resolve({text:fullAnswer, convId});
-    };
-
-    xhr.onerror = () => reject(new Error('ネットワークエラー'));
-    xhr.ontimeout = () => reject(new Error('タイムアウト'));
-    xhr.timeout = 120000; // 2分
-
-    xhr.send(JSON.stringify(body));
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
   });
 }
 </script>
