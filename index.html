@@ -106,17 +106,12 @@
   <div id="crop-hint">枠をドラッグして範囲を選択・角をドラッグしてリサイズ</div>
 </div>
 <script>
-// ======================================================
-// ★ GASデプロイ後にここのURLを書き換えてください ★
-// ======================================================
 const GEMINI_URL = 'https://script.google.com/macros/s/AKfycbxb_aSUbTjun5Q7_sNR8zRv-AS8CrkcByJdHbR1xDj8bDjccprD7CXApgjUnhI5OdBgaA/exec';
-// ======================================================
 
 let selectedFile = null;
 let isWaiting = false;
 let originalImageSrc = null;
 
-// Camera/Gallery
 document.getElementById('camera-btn').addEventListener('click', () => document.getElementById('file-camera').click());
 document.getElementById('gallery-btn').addEventListener('click', () => document.getElementById('file-gallery').click());
 
@@ -226,7 +221,6 @@ async function send() {
 
   const chat = document.getElementById('chat');
 
-  // User message
   const userMsg = document.createElement('div');
   userMsg.className = 'msg user';
   if (selectedFile) {
@@ -245,7 +239,6 @@ async function send() {
   const fileToSend = selectedFile;
   document.getElementById('remove-img').click();
 
-  // Typing
   const typingDiv = document.createElement('div');
   typingDiv.className = 'msg bot';
   typingDiv.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
