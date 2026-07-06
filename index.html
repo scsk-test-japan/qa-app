@@ -43,6 +43,10 @@
   .btn-gallery { background:var(--surface2); color:var(--text); border:1px solid #ffffff15; }
   #send-btn { background:linear-gradient(135deg,var(--accent),#8b5cf6); color:#fff; border:none; border-radius:14px; padding:16px; font-size:16px; font-weight:700; cursor:pointer; width:100%; -webkit-tap-highlight-color:transparent; }
   #send-btn:disabled{opacity:.5}
+  #token-selector { display:flex; gap:6px; background:var(--surface); border-radius:12px; padding:4px; }
+  .token-opt { flex:1; text-align:center; padding:9px 4px; border-radius:9px; font-size:13px; font-weight:600; color:var(--text2); cursor:pointer; -webkit-tap-highlight-color:transparent; transition:all .15s; }
+  .token-opt.active { background:linear-gradient(135deg,var(--accent),#8b5cf6); color:#fff; }
+  .token-label { font-size:11px; color:var(--text2); padding:0 2px; }
   #file-camera,#file-gallery{display:none}
   .empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--text2); text-align:center; padding:40px 20px; }
   .empty .icon{font-size:48px} .empty h2{font-size:18px;color:var(--text);font-weight:700} .empty p{font-size:13px;line-height:1.6}
@@ -84,6 +88,12 @@
     <button class="btn btn-camera" id="camera-btn">📷 カメラで撮る</button>
     <button class="btn btn-gallery" id="gallery-btn">🖼 ギャラリー</button>
   </div>
+  <div class="token-label">回答の詳しさ</div>
+  <div id="token-selector">
+    <div class="token-opt active" data-tokens="512">⚡ 短い</div>
+    <div class="token-opt" data-tokens="1536">📝 普通</div>
+    <div class="token-opt" data-tokens="4096">📚 詳しい</div>
+  </div>
   <button id="send-btn">📤 送信する</button>
 </div>
 <input type="file" id="file-camera" accept="image/*" capture="environment">
@@ -106,12 +116,24 @@
   <div id="crop-hint">枠をドラッグして範囲を選択・角をドラッグしてリサイズ</div>
 </div>
 <script>
-const GEMINI_URL = 'https://script.google.com/macros/s/AKfycbxb_aSUbTjun5Q7_sNR8zRv-AS8CrkcByJdHbR1xDj8bDjccprD7CXApgjUnhI5OdBgaA/exec';
+const GEMINI_KEY = 'AIzaSyC9o_F20nNeyTFXiYzLEYEvo5d9fKT4Qx4';
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
 
 let selectedFile = null;
 let isWaiting = false;
 let originalImageSrc = null;
+let maxTokens = 512; // デフォルトは最小
 
+// Token selector
+document.querySelectorAll('.token-opt').forEach(opt => {
+  opt.addEventListener('click', () => {
+    document.querySelectorAll('.token-opt').forEach(o => o.classList.remove('active'));
+    opt.classList.add('active');
+    maxTokens = parseInt(opt.dataset.tokens);
+  });
+});
+
+// Camera/Gallery
 document.getElementById('camera-btn').addEventListener('click', () => document.getElementById('file-camera').click());
 document.getElementById('gallery-btn').addEventListener('click', () => document.getElementById('file-gallery').click());
 
@@ -221,6 +243,7 @@ async function send() {
 
   const chat = document.getElementById('chat');
 
+  // User message
   const userMsg = document.createElement('div');
   userMsg.className = 'msg user';
   if (selectedFile) {
@@ -239,6 +262,7 @@ async function send() {
   const fileToSend = selectedFile;
   document.getElementById('remove-img').click();
 
+  // Typing
   const typingDiv = document.createElement('div');
   typingDiv.className = 'msg bot';
   typingDiv.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
@@ -246,8 +270,20 @@ async function send() {
   chat.scrollTop = chat.scrollHeight;
 
   try {
+    // Build Gemini request
     const parts = [];
 
+    // トークン数に応じて回答スタイルを変える
+    let styleGuide;
+    if (maxTokens <= 512) {
+      styleGuide = '【重要】回答は非常に簡潔に。答えと最小限の理由だけ。問題文の書き写しは不要。';
+    } else if (maxTokens <= 1536) {
+      styleGuide = '要点を押さえて解説してください。';
+    } else {
+      styleGuide = '丁寧にステップごとに詳しく解説してください。';
+    }
+
+    // System prompt as first text part
     parts.push({ text: `あなたは学習サポートの専門家です。画像の問題を解いてください。
 
 【絶対に守るルール】
@@ -256,16 +292,13 @@ async function send() {
 ・計算は数式で直接示す
 ・日本語で回答する
 
+${styleGuide}
+
 【回答フォーマット】
-【問題】
-（読み取った問題文を簡潔に）
+答え：（最終的な答え）
+解説：（理由・計算）` });
 
-【解法】
-（ステップごとの解説。数式は普通のテキストで書く）
-
-【答え】
-（最終的な答えを明確に）` });
-
+    // Image
     if (fileToSend) {
       const base64 = await fileToBase64(fileToSend);
       parts.push({
@@ -278,19 +311,14 @@ async function send() {
 
     parts.push({ text: '教えてください。' });
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000);
     const res = await fetch(GEMINI_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-      redirect: 'follow',
       body: JSON.stringify({
         contents: [{ parts }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 2048 }
+        generationConfig: { temperature: 0.2, maxOutputTokens: maxTokens }
       })
     });
-    clearTimeout(timeout);
 
     const data = await res.json();
     typingDiv.remove();
