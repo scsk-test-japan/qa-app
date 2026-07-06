@@ -43,6 +43,9 @@
   .btn-gallery { background:var(--surface2); color:var(--text); border:1px solid #ffffff15; }
   #send-btn { background:linear-gradient(135deg,var(--accent),#8b5cf6); color:#fff; border:none; border-radius:14px; padding:16px; font-size:16px; font-weight:700; cursor:pointer; width:100%; -webkit-tap-highlight-color:transparent; }
   #send-btn:disabled{opacity:.5}
+  #msg-input { width:100%; background:var(--surface); border:1px solid #ffffff15; border-radius:14px; padding:12px 15px; color:var(--text); font-size:14px; outline:none; resize:none; font-family:inherit; line-height:1.5; max-height:120px; }
+  #msg-input::placeholder{color:var(--text2)}
+  #msg-input:focus{border-color:var(--accent)}
   #token-selector { display:flex; gap:6px; background:var(--surface); border-radius:12px; padding:4px; }
   .token-opt { flex:1; text-align:center; padding:9px 4px; border-radius:9px; font-size:13px; font-weight:600; color:var(--text2); cursor:pointer; -webkit-tap-highlight-color:transparent; transition:all .15s; }
   .token-opt.active { background:linear-gradient(135deg,var(--accent),#8b5cf6); color:#fff; }
@@ -88,6 +91,7 @@
     <button class="btn btn-camera" id="camera-btn">📷 カメラで撮る</button>
     <button class="btn btn-gallery" id="gallery-btn">🖼 ギャラリー</button>
   </div>
+  <textarea id="msg-input" rows="1" placeholder="質問を補足できます（例：③を詳しく／式の意味を教えて）"></textarea>
   <div class="token-label">回答の詳しさ</div>
   <div id="token-selector">
     <div class="token-opt active" data-tokens="512">⚡ 短い</div>
@@ -123,6 +127,13 @@ let selectedFile = null;
 let isWaiting = false;
 let originalImageSrc = null;
 let maxTokens = 512; // デフォルトは最小
+
+// メッセージ入力欄の自動リサイズ
+const msgInput = document.getElementById('msg-input');
+msgInput.addEventListener('input', () => {
+  msgInput.style.height = 'auto';
+  msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
+});
 
 // Token selector
 document.querySelectorAll('.token-opt').forEach(opt => {
@@ -235,6 +246,7 @@ document.getElementById('send-btn').addEventListener('click', send);
 
 async function send() {
   if (isWaiting) return;
+  const userQuestion = document.getElementById('msg-input').value.trim();
   isWaiting = true;
   const btn = document.getElementById('send-btn');
   btn.disabled = true;
@@ -254,13 +266,15 @@ async function send() {
   }
   const ub = document.createElement('div');
   ub.className = 'bubble';
-  ub.textContent = '教えて';
+  ub.textContent = userQuestion || '教えて';
   userMsg.appendChild(ub);
   chat.appendChild(userMsg);
   chat.scrollTop = chat.scrollHeight;
 
   const fileToSend = selectedFile;
   document.getElementById('remove-img').click();
+  document.getElementById('msg-input').value = '';
+  document.getElementById('msg-input').style.height = 'auto';
 
   // Typing
   const typingDiv = document.createElement('div');
@@ -309,7 +323,15 @@ ${styleGuide}
       });
     }
 
-    parts.push({ text: '教えてください。' });
+    // ユーザーの補足質問を追加
+    if (userQuestion) {
+      parts.push({ text: `【利用者からの補足リクエスト】
+${userQuestion}
+
+上記のリクエストを踏まえて回答してください。` });
+    } else {
+      parts.push({ text: '教えてください。' });
+    }
 
     const res = await fetch(GEMINI_URL, {
       method: 'POST',
